@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat App</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/chat.css') }}">
+</head>
+<body>
+
+    <div class="container-fluid h-100">
+
+        <div class="row flex-grow-1 justify-content-center">
+            <div class="col-3 d-flex flex-column">
+                <div class="online-users-container panel-shadow">
+                    <h3 class="online-users-title">Online Users</h3>
+                    <div class="user-search">
+                        <input type="text" class="form-control" placeholder="Search user...">
+                    </div>
+                    <ul id="online-users-list" class="user-list">
+                        {% for user in online_users %}
+                        <!--- add online icon here -->
+                        <li class="user-list-item" onclick="selectUser(this)">
+                            <span class="online-icon"></span>
+                            {{ user }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    <p style="font-size: 15px;">Hey! Don't judge me, I'm just a simple chat app (And my developer is not a designer)</p>
+                </div>
+            </div>
+            <div class="col-9 d-flex flex-column overflow-hidden">
+                <div id="message-container" class="panel-shadow message-container">
+                    {% for message in messages %}
+                    <div class="message">
+                        <!-- if sender is 'System Message' make it colorful--->
+                        {% if message['warning'] %}
+                            <!-- Yellow -->
+                            <div class="alert alert-warning" role="alert">
+                                {{ message['text'] }}
+                            </div>
+                        {% else %}
+                            {% if message['sender'] == 'System Message' %}
+                            <strong style="color: #ff0000;">{{ message['sender'] }}:</strong> {{ message['text'] }}
+                            {% elif message['sender'] == 'me' %}
+                            <strong style="color: #0000ff;">{{ message['sender'] }}:</strong> {{ message['text'] }}
+                            {% else %}
+                            <strong>{{ message['sender'] }}:</strong> {{ message['text'] }}
+                            {% endif %}
+                            {% if message['attachment'] %}
+                            <br>
+                            <a href="{{ message['attachment'] }}" target="_blank">
+                                <img src="{{ message['attachment'] }}" class="message-attachment">
+                            </a>
+                            {% endif %}
+                        {% endif %}
+
+                    </div>
+                    {% endfor %}
+                </div>
+                <form id="message-form">
+                    <div class="input-group">
+                        <input type="text" id="input-message" class="form-control" placeholder="Write your message..." autocomplete="off" style="background-color: #fff;">
+                        <!--- Space -->
+                        &nbsp;
+                        <div class="input-group-append">
+                            <label for="attachment-input" class="btn btn-secondary">Attach</label>
+                            <input type="file" id="attachment-input" style="display: none;" accept="image/*,video/*" onchange="validateAttachment(this)">
+                        </div>
+                        <!--- Space -->
+                        &nbsp;
+                        <button type="submit" class="btn btn-primary">Send</button>
+
+                        <!--- Space -->
+                        &nbsp;
+                    </div>
+                </form>
+                <div id="attachment-size-error" class="text-danger" style="display: none;">The file size exceeds the maximum limit (~10 mb).</div>
+
+
+            </div>
+            <div class="footer">
+                    &copy; 2023. All copy rights reserved. Yet another simple chat app which developed by <a href="https://github.com/FFC12" target="_blank">FFC12</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.3.2/socket.io.js"></script>
+    <script src="{{ url_for('static', path='js/chat.js') }}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script type="text/javascript">
+    </script>
+</body>
+</html>

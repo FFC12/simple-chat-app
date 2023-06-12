@@ -1,0 +1,13 @@
+python-socketio
+motor
+fastapi
+jinja2
+pymongo
+requests
+redis[hiredis]
+loguru
+python-multipart
+uvicorn[standard]
+starlette
+pydantic
+fastapi-jwt-auth[asymmetric]
