@@ -26,7 +26,7 @@ async def connect(sid, environ):
     :param environ:
     :return:
     """
-    logger.info(f'Client {sid} connected')
+    logger.debug(f'Client {sid} connected')
 
     # get headers
     cookies = environ['HTTP_COOKIE']
@@ -81,7 +81,13 @@ async def connect(sid, environ):
         # disconnect client if token is invalid
         await sio.disconnect(sid)
 
-    logger.info(f'Client {username} has connected successfully')
+    logger.debug(f'Client {username} has connected successfully')
+
+    # store sid in redis for id
+    redis.hset(id, mapping={
+        'sid': sid,
+        'username': username
+    })
 
     # save session
     await sio.save_session(sid, {'username': username, 'id': id})
@@ -95,47 +101,43 @@ async def message(sid, data):
     :param data:
     :return:
     """
+    # get session
     session = await sio.get_session(sid)
 
+    # disconnect client if session is not found
     if session is None:
-        # disconnect client if session is not found
         await sio.disconnect(sid)
 
-    logger.info(f'Client {sid} sent message: {data}')
-
+    # get data
     target = data['target']
     username = data['username']
     text = data['message']
     timestamp = data['timestamp']
 
+    # get target id
+    target_id = redis.hget(target, 'id')
+
+    logger.debug(f'Target id: {target_id}')
+
     data = {
         'sender': username,
+        'sender_id': session['id'],
         'to': target,
+        'to_id': target_id,
         'text': text,
         'timestamp': timestamp,
         'attachment': False
     }
 
-    # private message
-    if target != 'room':
-        # get collection
-        collection = db['users']
+    # get target sid
+    target_sid = redis.hget(target_id, 'sid')
 
-        # get user
-        user = await collection.find_one({'username': target})
+    logger.debug(f'Target sid: {target_sid}')
 
-        # get user id
-        user_id = str(user['_id'])
+    # send private message
+    await sio.emit('message', data, room=target_sid)
 
-        # get user sid
-        user_sid = redis.get(user_id)
-
-        logger.info(f'User {target} sid: {user_sid}')
-
-        # send private message
-        await sio.emit('message', data, room=user_sid)
-    #else:
-    #    await sio.emit('message', data)
+    logger.info(f'Client {sid} sent message: {data}')
 
 
 @sio.on("disconnect")
@@ -145,12 +147,12 @@ async def disconnect(sid):
     :param sid:
     :return:
     """
-    logger.info(f'Client {sid} disconnected')
+    logger.debug(f'Client {sid} disconnected')
 
     # remove user from online users
     redis.srem('online_users', sid)
 
-    # session will be removed automatically
+    # session will be removed automatically (socket.io feature)
 
     # update online users
     await sio.emit('online_users', get_online_users())
@@ -164,7 +166,7 @@ async def online_users(sid, data):
     :param data:
     :return:
     """
-    logger.info(f'Client {sid} listen online users')
+    logger.debug(f'Client {sid} listen online users')
 
     # emit online users
     await sio.emit('online_users', get_online_users())
@@ -178,7 +180,7 @@ async def attachment(sid, data):
     :param data:
     :return:
     """
-    logger.info(f'Client {sid} sent attachment: {data}')
+    logger.debug(f'Client {sid} sent attachment: {data}')
 
     data = {
         'sender': sid,
@@ -242,7 +244,13 @@ def check_data_type(data):
                 if response.headers['content-type'].startswith(('image/png', 'image/jpeg', 'image/gif')):
                     data['image'] = True
                     data['url'] = True
-                    data['image_data'] = response.content.decode('utf-8')
+
+                    # if image is too large, send warning
+                    if int(response.headers['content-length']) > 1000000:
+                        data['warning'] = True
+                        data['text'] = 'This image is too large. We can not send it'
+                    else:
+                        data['image_data'] = response.content.decode('utf-8')
 
     return data
 

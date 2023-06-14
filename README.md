@@ -1,8 +1,37 @@
-## Simple Chat Application (WIP)
+## Yet Another Simple Chat Application (WIP)
 
-This project is a simple chat application developed using Python 3.11. It is built with FastAPI, MongoDB, Redis, and Socket.io. Users can register and log in to the application, allowing them to privately message each other through the user-friendly interface. Online users are displayed in real-time. The backend flow is managed using Docker and docker-compose. The application is deployed on Heroku.
+This is a simple chat application developed using Python 3.11. It utilizes FastAPI, MongoDB, Redis, and Socket.io to provide a seamless messaging experience. Users can easily register, log in, and send private messages through a user-friendly interface. Real-time online user tracking is also included.
 
-#### Key Features:
+### Main Features
+
+- User registration and login
+- Private messaging
+- Real-time online user display
+
+### Technologies Used
+
+- Python 3.11
+- FastAPI
+- MongoDB 
+- Redis
+- Socket.io
+
+### Deployment
+
+The application is deployed on Heroku.
+How to Run
+
+1) Clone the repository 
+2) Run the application using Docker and docker-compose
+
+### Contributions
+Even though this is a personal project, I am open to suggestions and improvements. So contributions and feedback are welcome! If you find any issues or have suggestions for improvements, please feel free to open an issue or submit a pull request.
+
+### Disclaimer
+
+This project is intended to be a portfolio piece and may have areas for improvement. However, it functions as a reliable chat application and demonstrates my skills in utilizing modern technologies.
+
+#### All Features:
 
 * User registration and login functionality
 * User authentication using JWT (JSON Web Tokens)

@@ -16,8 +16,10 @@ from fastapi import Depends, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.core.base import app, asgi, sio
+from app.core.base import app, asgi
 from app.core.security import AuthJWT
+
+from app.core.redis import RedisManager
 
 # they need to be imported to register events (otherwise they won't be registered and won't work)
 from app.chat.events import message, connect, disconnect, online_users
@@ -42,6 +44,9 @@ app.mount("/ws", asgi)
 app.include_router(user_router, prefix='/api/v1/user', tags=['user'])
 app.include_router(room_router, prefix='/api/v1/room', tags=['room'])
 
+# get redis instance
+redis = RedisManager.get_instance().get_redis()
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -53,6 +58,9 @@ async def startup_event():
 
     # Initialize the database
     Config.init_db()
+
+    # Clear all redis keys (for development)
+    redis.flushall()
 
 
 @app.get("/chat")
