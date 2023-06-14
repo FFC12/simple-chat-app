@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login/Register Page</title>
+    <style>
+        body {
+            // gradient background
+            background-color: #f2f2f2;
+            font-family: Arial, sans-serif;
+        }
+
+        #menu {
+            background-color: #333;
+            color: #fff;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+        }
+
+        #menu a {
+            color: #fff;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+
+        #menu a.active {
+            font-weight: bold;
+        }
+
+        #content {
+            background-color: #fff;
+            margin-top: 50px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .form-panel {
+            display: none;
+        }
+
+        .form-panel.active {
+            display: block;
+        }
+
+        form {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        form label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        form input[type="text"],
+        form input[type="password"] {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+
+        form input[type="submit"] {
+            background-color: #333;
+            color: #fff;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+    </style>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            var loginLink = document.getElementById("login-link");
+            var registerLink = document.getElementById("register-link");
+            var loginForm = document.getElementById("login-form");
+            var registerForm = document.getElementById("register-form");
+
+            loginLink.addEventListener("click", function(event) {
+                event.preventDefault();
+                loginLink.classList.add("active");
+                registerLink.classList.remove("active");
+                loginForm.classList.add("active");
+                registerForm.classList.remove("active");
+            });
+
+            registerLink.addEventListener("click", function(event) {
+                event.preventDefault();
+                registerLink.classList.add("active");
+                loginLink.classList.remove("active");
+                registerForm.classList.add("active");
+                loginForm.classList.remove("active");
+            });
+        });
+    </script>
+</head>
+<body>
+    <div id="menu">
+        <a id="login-link" class="active" href="#login">Login</a>
+        <a id="register-link" href="#register">Register</a>
+    </div>
+    <div id="content">
+        <!-- Failed message -->
+        <form id="login-form" class="form-panel active" action="/api/v1/user/login" method="post">
+            <h2>Login</h2>
+            <p style="color: red;">{{ error }}</p>
+            <label for="login-username">Username:</label>
+            <input type="text" id="login-username" name="username" required>
+            <label for="login-password">Password:</label>
+            <input type="password" id="login-password" name="password" required>
+            <input type="submit" value="Login">
+        </form>
+        <form id="register-form" class="form-panel" action="/api/v1/user/register" method="post">
+            <h2>Register</h2>
+            <p style="color: red;">{{ error }}</p>
+            <label for="register-username">Username:</label>
+            <input type="text" id="register-username" name="username" required>
+            <label for="register-password">Password:</label>
+            <input type="password" id="register-password" name="password" required>
+            <input type="submit" value="Register">
+        </form>
+    </div>
+</body>
+</html>

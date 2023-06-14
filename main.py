@@ -1,11 +1,7 @@
 """
 This project is a simple chat application using FastAPI and SocketIO as
 backend and using MongoDB as database to store chat history and user data.
-Redis is used to store user session data. The application is deployed using
-Docker and docker-compose. The application is deployed to Heroku.
-
-Also, this API is using by mobile application. You can check it out
-from here: ![chat-app-mobile](github.com/ffc12/chat-app-mobile)
+Redis is used to store user session data.
 
 - Author
     FFC12 (fatihsaika@gmail.com) - ![ffc12](github.com/ffc12)
@@ -14,20 +10,22 @@ from here: ![chat-app-mobile](github.com/ffc12/chat-app-mobile)
     MIT License
 
 """
-import os
+import json
 
-from fastapi import Request, HTTPException
-
+from fastapi import Depends, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.core.redis import RedisManager
 from app.core.base import app, asgi, sio
+from app.core.security import AuthJWT
+
+# they need to be imported to register events (otherwise they won't be registered and won't work)
+from app.chat.events import message, connect, disconnect, online_users
+
 from app.db.config import Config
 
-from app.api.user import user_router
+from app.api.user import user_router, get_online_users
 from app.api.room import room_router
-from app.chat.events import connect, message, online_users, disconnect
 
 from loguru import logger
 
@@ -57,64 +55,63 @@ async def startup_event():
     Config.init_db()
 
 
-@app.get("/")
-async def root():
-    """
-    Root page
-    :return:
-    """
-    return {"message": "Hello World"}
-
-
 @app.get("/chat")
-async def index(request: Request):
+async def chat(
+        request: Request,
+        Authorize: AuthJWT = Depends()
+):
     """
     chat.html page
+
+    :param request:
+    :param Authorize:
     :return:
     """
+    Authorize.jwt_required()
+    # TODO: Retrieve the last 100 messages from database for 'room' or 'user'
 
-    # Retrieve the last 100 messages from database
     messages = [
         {"sender": "System Message", "text": "Welcome to the Yet Another Simple Chat App!", 'attachment': False},
     ]
 
-    return templates.TemplateResponse("chat.html", {"request": request, "messages": messages})
+    # Get payload
+    payload = Authorize.get_jwt_subject()
+
+    # Convert payload to json
+    payload = json.loads(payload)
+
+    # Get username and id
+    username = payload['username']
+    id = payload['id']
+
+    # Get online users
+    online_users = get_online_users()
+
+    return templates.TemplateResponse("chat.html", {"request": request,
+                                                    "messages": messages,
+                                                    "username": username,
+                                                    "id": id,
+                                                    "online_users": online_users})
 
 
-"""
-@app.sio.on("join")
-async def join(sid, *args, **kwargs):
-    await app.sio.emit('lobby', 'user joined')
+@app.get("/")
+async def index(
+        request: Request,
+        Authorize: AuthJWT = Depends()
+):
+    """
+    index.html page
 
+    :param request:
+    :param Authorize:
+    :return:
+    """
+    if not request.cookies.get('token'):
+        return templates.TemplateResponse("index.html", {"request": request})
+    else:
+        # Get username from token
+        username = Authorize.get_jwt_subject()
 
-
-async def get_user(db):
-    collection = db['chat']
-    user = {
-        'name': 'John Doe',
-        'email': 'asdas'
-    }
-    result = await collection.insert_one(user)
-    logger.debug(f'Insert user: {result.inserted_id}')
-
-    # get user
-    user = await collection.find_one({'_id': result.inserted_id})
-    print(user)
-
-
-async def main():
-    redis_host = os.getenv('REDIS_HOST')
-    redis_port = os.getenv('REDIS_PORT')
-    redis_manager = RedisManager(host=redis_host, port=redis_port)
-    redis = redis_manager.get_redis()
-    redis.set('foo', 'bar')
-    redis_manager.set_data('foo', 'bar')
-    print(redis.get('foo'))
-
-    db = Config.init_db()
-    await get_user(db)
-
-if __name__ == '__main__':
-    import asyncio
-    asyncio.run(main())
-"""
+        # redirect to chat page
+        return templates.TemplateResponse("chat.html", {"request": request,
+                                                        "username": username})

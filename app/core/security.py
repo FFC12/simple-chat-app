@@ -1,5 +1,5 @@
 from fastapi import Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import RedirectResponse
 
 from fastapi_jwt_auth import AuthJWT
 from fastapi_jwt_auth.exceptions import AuthJWTException
@@ -17,6 +17,7 @@ class Settings(BaseModel):
     authjwt_secret_key: str = "secret"
     authjwt_token_location: set = {"cookies"}
     authjwt_cookie_csrf_protect: bool = False
+    authjwt_access_token_expires: int = 60 * 60 * 24 * 7  # 1 week
 
 
 @AuthJWT.load_config
@@ -36,7 +37,4 @@ def authjwt_exception_handler(request: Request, exc: AuthJWTException):
     :param exc:
     :return:
     """
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": exc.message}
-    )
+    return RedirectResponse(url='/', status_code=302)

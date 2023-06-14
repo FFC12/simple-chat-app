@@ -3,29 +3,43 @@ import os
 from uuid import uuid4
 from hashlib import sha256
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, Body, Form
+from fastapi.responses import RedirectResponse
+from fastapi.templating import Jinja2Templates
 from loguru import logger
 
 from app.core.redis import RedisManager
 from app.core.security import AuthJWT
 
-from app.schemas.user import UserCreate, UserUpdate, UserDelete, UserLogin, UserRead
+from app.schemas.user import UserUpdate, UserDelete, UserRead
 
 from app.db.config import Config
 
+# user router
 user_router = APIRouter()
 
+# static files from root directory
+templates = Jinja2Templates(directory='templates')
+
+# get redis instance
 redis = RedisManager.get_instance().get_redis()
 
+# get database
 db = Config.get_db()
 
 
 @user_router.post("/login")
-async def login(user: UserLogin, Authorize: AuthJWT = Depends()):
+async def login(
+        request: Request,
+        username: str = Form(...),
+        password: str = Form(...),
+        Authorize: AuthJWT = Depends()):
     """
     Login endpoint for user
-    :param user:
-    :param passw:
+
+    :param request:
+    :param password:
+    :param username:
     :param Authorize:
     :return:
     """
@@ -33,66 +47,121 @@ async def login(user: UserLogin, Authorize: AuthJWT = Depends()):
     collection = db['users']
 
     # check if user exist
-    result = await collection.find_one({'username': user.username})
+    result = await collection.find_one({'username': username})
 
     if result is None:
-        return HTTPException(status_code=401, detail="User not found")
+        return templates.TemplateResponse("index.html", {"request": request,
+                                                         "error": "Username not found"})
 
     # hash password
-    password = sha256(user.password.encode()).hexdigest()
+    password = sha256(password.encode()).hexdigest()
 
     # check if password is correct
     if result['password'] != password:
-        return HTTPException(status_code=401, detail="Wrong password")
+        return templates.TemplateResponse("index.html", {"request": request,
+                                                         "error": "Password is incorrect"})
 
     # Get id from user
-    subject = result['_id']
+    subject = {
+        "id": str(result['_id']),
+        "username": username
+    }
 
     # Create access token
-    create_access_token(Authorize, subject)
+    access_token = Authorize.create_access_token(subject=json.dumps(subject))
+    refresh_token = Authorize.create_refresh_token(subject=json.dumps(subject))
 
-    logger.info(f'Client {user.username} connected')
+    logger.info(f'Client {username} connected')
 
     # Add user to online users
-    add_online_user(user.username)
+    add_online_user(username, subject['id'])
 
-    return HTTPException(status_code=200, detail=get_online_users())
+    # Redirect to chat page
+    response = RedirectResponse(url='/chat', status_code=302)
+
+    # Set username as a cookie
+    response.set_cookie(key="username", value=username)
+    response.set_cookie(key="id", value=subject['id'])
+
+    # Set the JWT cookies in the response
+    Authorize.set_access_cookies(access_token, response)
+    Authorize.set_refresh_cookies(refresh_token, response)
+
+    return response
 
 
 @user_router.post("/register")
-async def register(user: UserCreate,  Authorize: AuthJWT = Depends()):
+async def register(
+        request: Request,
+        username: str = Form(...),
+        password: str = Form(...),
+        Authorize: AuthJWT = Depends()):
     """
     Register endpoint for user
-    :param user:
-    :param passw:
+    :param request:
+    :param username:
+    :param password:
+    :param Authorize:
     :return:
     """
     # get collection
     collection = db['users']
 
+    # check username length
+    if len(username) < 3 or len(username) > 20:
+        return templates.TemplateResponse("index.html", {"request": request,
+                                                         "error": "Username must be between 3 and 20 characters"})
+
+    # check if username is alphanumeric
+    if not username.isalnum():
+        return templates.TemplateResponse("index.html", {"request": request,
+                                                         "error": "Username must be alphanumeric"})
+
     # check if user exist
-    result = await collection.find_one({'username': user.username})
+    result = await collection.find_one({'username': username})
 
     if result is not None:
-        return HTTPException(status_code=401, detail="Username already exist")
+        return templates.TemplateResponse("index.html", {"request": request,
+                                                         "error": "Username already exist"})
 
     # hash password
-    password = sha256(user.password.encode()).hexdigest()
+    password = sha256(password.encode()).hexdigest()
 
     # insert user
-    user = await collection.insert_one({'username': user.username, 'password': password})
+    user = await collection.insert_one({'username': username, 'password': password})
 
     # Get id from user
-    user_id = user.inserted_id
+    subject = {
+        "id": str(user.inserted_id),
+        "username": username
+    }
+
+    logger.info(f'Client {subject} registered')
 
     # Create access token
-    create_access_token(Authorize, user_id)
+    access_token = Authorize.create_access_token(subject=json.dumps(subject))
+    refresh_token = Authorize.create_refresh_token(subject=json.dumps(subject))
 
-    return HTTPException(status_code=200, detail="Register successfully")
+    # Add user to online users
+    add_online_user(username, subject['id'])
+
+    # Redirect to chat page
+    response = RedirectResponse(url='/chat', status_code=302)
+
+    # Set username as a cookie
+    response.set_cookie(key="username", value=username)
+
+    # Set the JWT cookies in the response
+    Authorize.set_access_cookies(access_token, response)
+    Authorize.set_refresh_cookies(refresh_token, response)
+
+    return response
 
 
 @user_router.post("/update")
-async def update(user: UserUpdate, Authorize: AuthJWT = Depends()):
+async def update(
+        user: UserUpdate,
+        Authorize: AuthJWT = Depends()):
     """
     Update endpoint for user
     :param user:
@@ -124,22 +193,34 @@ async def update(user: UserUpdate, Authorize: AuthJWT = Depends()):
     return HTTPException(status_code=200, detail="Update successfully")
 
 
-@user_router.delete("/logout")
-async def logout(Authorize: AuthJWT = Depends()):
+@user_router.post("/logout")
+async def logout(
+        request: Request,
+        Authorize: AuthJWT = Depends()
+):
     """
     Logout endpoint for user
+    :param request:
     :param Authorize:
     :return:
     """
     Authorize.jwt_required()
 
+    response = templates.TemplateResponse("index.html", {"request": request, "message": "Logout successfully"})
+
     # Remove the JWT cookies from the response and set a new CSRF token in it's place
-    Authorize.unset_jwt_cookies()
+    Authorize.unset_jwt_cookies(response)
+
+    payload = Authorize.get_jwt_subject()
+    payload = json.loads(payload)
+
+    username = payload['username']
+    id = payload['id']
 
     # Remove user from online users
-    remove_online_user(Authorize.get_jwt_subject())
+    remove_online_user(username, id)
 
-    return HTTPException(status_code=200, detail="Logout successfully")
+    return response
 
 
 @user_router.post("/refresh")
@@ -195,27 +276,14 @@ async def upload(file: UploadFile = File(...), Authorize: AuthJWT = Depends()):
     return HTTPException(status_code=200, detail="Upload successfully")
 
 
-# a protected endpoint which requires a valid access token for access
-@user_router.get("/test_protected")
-async def protected(Authorize: AuthJWT = Depends()):
-    """
-    Protected endpoint for user
-    :param Authorize:
-    :return:
-    """
-    Authorize.jwt_required()
-
-    # Access the identity of the current user with get_jwt_identity
-    current_user = Authorize.get_jwt_subject()
-
-    return HTTPException(status_code=200, detail=f"Welcome {current_user}")
-
-
-# -- helper functions --
-def add_online_user(user):
+def add_online_user(user, id):
     # add user to redis for online users
-    if not redis.sismember('online_users', user):
+    if not redis.sismember('online_users', str(user)):
         redis.sadd('online_users', str(user))
+
+    redis.hset(str(user), mapping={
+        'id': id,
+    })
 
 
 def remove_online_user(user):
@@ -224,30 +292,23 @@ def remove_online_user(user):
     :param user:
     :return:
     """
-    # Remove user from online users
-    redis.srem('online_users', user)
+    # remove user from redis for online users
+    if redis.sismember('online_users', str(user)):
+        redis.srem('online_users', str(user))
+
+    # remove user and id from user list in redis
+    redis.delete(str(user))
 
 
 def get_online_users():
-    # broadcast online users
-    online_users = redis.smembers('online_users')
+        online_users = redis.smembers('online_users')
 
-    online_user_list = []
-    for user in online_users:
-        online_user_list.append(str(user))
+        online_user_list = []
+        for user in online_users:
+            online_user_list.append(str(user))
 
-    data = {
-        'online_users': online_user_list
-    }
+        data = {
+            'online_users': online_user_list
+        }
 
-    return json.dumps(data)
-
-
-def create_access_token(auth, subject):
-    # Create the tokens and passing to set_access_cookies or set_refresh_cookies
-    access_token = auth.create_access_token(subject=subject)
-    refresh_token = auth.create_refresh_token(subject=subject)
-
-    # Set the JWT cookies in the response
-    auth.set_access_cookies(access_token)
-    auth.set_refresh_cookies(refresh_token)
+        return json.dumps(data)

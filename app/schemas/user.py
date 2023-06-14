@@ -1,3 +1,4 @@
+from fastapi import Form
 from pydantic import BaseModel, Field
 from bson import ObjectId
 
@@ -5,14 +6,6 @@ from bson import ObjectId
 class UserBase(BaseModel):
     username: str
     password: str
-
-
-class UserCreate(UserBase):
-    pass
-
-
-class UserLogin(UserBase):
-    pass
 
 
 class UserUpdate(UserBase):

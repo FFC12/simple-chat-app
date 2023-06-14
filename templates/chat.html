@@ -19,15 +19,17 @@
                         <input type="text" class="form-control" placeholder="Search user...">
                     </div>
                     <ul id="online-users-list" class="user-list">
-                        {% for user in online_users %}
-                        <!--- add online icon here -->
-                        <li class="user-list-item" onclick="selectUser(this)">
-                            <span class="online-icon"></span>
-                            {{ user }}
-                        </li>
-                        {% endfor %}
+                        <!-- Users -->
                     </ul>
                     <p style="font-size: 15px;">Hey! Don't judge me, I'm just a simple chat app (And my developer is not a designer)</p>
+
+                    <!--- Logout --->
+                    <div class="logout-container">
+                        <form action="{{ url_for('logout') }}" method="post">
+                            Logged in as: <h4> {{ username }} </h4>
+                            <button type="submit" class="btn btn-danger">Logout</button>
+                        </form>
+                    </div>
                 </div>
             </div>
             <div class="col-9 d-flex flex-column overflow-hidden">

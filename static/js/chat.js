@@ -1,15 +1,40 @@
 // Note: This script is used to handle the chat functionality quick-and-dirty *not safest way*
 
+
+// get all cookies
+var cookies = document.cookie.split(';');
+
+// get the username from the cookie
+var username = null;
+var id = null;
+var accessToken = null;
+
+console.log('Cookies: ' + cookies);
+
+for(var i = 0; i < cookies.length; i++) {
+    var cookie = cookies[i].trim();
+    if(cookie.startsWith('username')) {
+        username = cookie.split('=')[1];
+    } else if(cookie.startsWith('id')) {
+        id = cookie.split('=')[1];
+    } else if(cookie.startsWith('accessToken')) {
+        accessToken = cookie.split('=')[1];
+    }
+}
+
 // Connect to the socket.io server
 const socket = io.connect('http://' + document.domain + ':' + location.port, {
     "path": "/ws/socket.io",
     "forceNew": true,
     "reconnectionAttempts": 3,
     "timeout": 2000,
-    "transports": ["websocket", "polling", "flashsocket"]
+    "transports": ["websocket", "polling", "flashsocket"],
+    "query": "username=" + username + "&id=" + id,
+    "headers": {
+        'Authorization': 'Bearer ' + accessToken,
+    }
 });
 
-// Call on page initialization
 socket.emit('online_users', {});
 
 // Call this every 30 seconds to keep the connection alive
@@ -25,39 +50,47 @@ var messageForm = document.getElementById('message-form');
 var inputMessage = document.getElementById('input-message');
 var onlineUsersList = document.getElementById('online-users-list');
 var currentSelectedFile = null;
+var selectedUser = null;
 
 messageForm.addEventListener('submit', function (e) {
     e.preventDefault();
     var message = inputMessage.value.trim();
     console.log(message);
-    if (message !== '') {
-        if(currentSelectedFile === null) {
+
+    if(currentSelectedFile == null) {
+       if (message !== '') {
+            message = {
+                'target': selectedUser,
+                'message': message,
+                'username': username,
+                'timestamp': new Date().toLocaleString()
+            }
             socket.emit('message', message);
             inputMessage.value = '';
-        } else {
-            // upload the file to the server as HTTP POST request
-            var reader = new FileReader();
-            reader.readAsDataURL(currentSelectedFile);
-            reader.onload = function () {
-                var base64 = reader.result.split(',')[1];
+        }
+    } else {
+        // upload the file to the server as HTTP POST request
+        var reader = new FileReader();
+        reader.readAsDataURL(currentSelectedFile);
+        reader.onload = function () {
+            var base64 = reader.result.split(',')[1];
 
-                var formData = new FormData();
-                formData.append('file', base64);
-                formData.append('filename', currentSelectedFile.name);
-                formData.append('filesize', currentSelectedFile.size);
-                formData.append('filetype', currentSelectedFile.type);
+            var formData = new FormData();
+            formData.append('file', base64);
+            formData.append('filename', currentSelectedFile.name);
+            formData.append('filesize', currentSelectedFile.size);
+            formData.append('filetype', currentSelectedFile.type);
 
-                var xhr = new XMLHttpRequest();
-                xhr.open('POST', '/upload', true);
-                xhr.onload = function () {
-                    if (this.status === 200) {
-                        console.log('File uploaded successfully');
-                    } else {
-                        console.log('File upload failed');
-                    }
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/upload', true);
+            xhr.onload = function () {
+                if (this.status === 200) {
+                    console.log('File uploaded successfully');
+                } else {
+                    console.log('File upload failed');
                 }
-                currentSelectedFile = null;
             }
+            currentSelectedFile = null;
         }
     }
 });
@@ -70,6 +103,7 @@ function selectUser(element) {
     }
 
     console.log("Selected user: " + element.innerText); // DEBUG
+    selectedUser = element.innerText;
 
     // Select the clicked user
     element.classList.add('selected');
@@ -144,20 +178,36 @@ injectOnlineUsers = function (online_users) {
     for (var i = 0; i < online_users.length; i++) {
         var listItem = document.createElement('li');
         listItem.classList.add('user-list-item');
-        listItem.setAttribute('onclick', 'selectUser(this)');
 
-        // add another element inside the 'li' element
-        var spanItem = document.createElement('span');
-        spanItem.classList.add('online-icon');
-        listItem.appendChild(spanItem);
+        if (online_users[i] !== username) {
+            listItem.setAttribute('onclick', 'selectUser(this)');
 
-        listItem.innerText = online_users[i];
-        onlineUsersList.appendChild(listItem);
+            // add another element inside the 'li' element
+            var spanItem = document.createElement('span');
+            spanItem.classList.add('online-icon');
+            listItem.appendChild(spanItem);
+
+            listItem.innerText = online_users[i];
+            onlineUsersList.appendChild(listItem);
+        } else {
+            // add another element inside the 'li' element
+            var spanItem = document.createElement('span');
+            spanItem.classList.add('online-icon');
+
+            // make it strong
+            var strongItem = document.createElement('strong');
+            strongItem.innerText = online_users[i];
+            listItem.appendChild(strongItem);
+
+            onlineUsersList.appendChild(listItem);
+        }
     }
 }
 
 // Message event to receive messages from server and inject them into the chat
 socket.on('message', function (data) {
+    console.log(data);
+
     var messageElement = document.createElement('div');
     messageElement.classList.add('message');
     messageElement.innerHTML = '<strong>' + data.sender + ':</strong> ' + data.text;
@@ -173,4 +223,9 @@ socket.on('online_users', function (data) {
     online_users = data['online_users'];
 
     injectOnlineUsers(online_users);
+});
+
+// On disconnect event redirect to login page
+socket.on('disconnect', function () {
+    window.location.href = '/';
 });
