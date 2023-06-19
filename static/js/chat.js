@@ -196,7 +196,7 @@ injectOnlineUsers = function (online_users) {
 
             // make it strong
             var strongItem = document.createElement('strong');
-            strongItem.innerText = online_users[i];
+            strongItem.innerText = online_users[i] + ' (You)';
             listItem.appendChild(strongItem);
 
             onlineUsersList.appendChild(listItem);
@@ -208,11 +208,32 @@ injectOnlineUsers = function (online_users) {
 socket.on('message', function (data) {
     console.log(data);
 
+
     var messageElement = document.createElement('div');
-    messageElement.classList.add('message');
-    messageElement.innerHTML = '<strong>' + data.sender + ':</strong> ' + data.text;
+    if(data.sender === username) {
+        // float the message to the right add the style attribute
+        messageElement.setAttribute('style', 'float: right;');
+        messageElement.classList.add('message');
+        messageElement.innerHTML = '<strong style="color: blue; ">' + data.sender + ':</strong> ' + data.text;
+    } else {
+        messageElement.classList.add('message');
+        messageElement.innerHTML = '<strong>' + data.sender + ':</strong> ' + data.text;
+    }
     messageContainer.appendChild(messageElement);
     messageContainer.scrollTop = messageContainer.scrollHeight;
+
+    // get all user-list-item elements
+    var userItems = document.getElementsByClassName('user-list-item');
+
+    for(var i = 0; i < userItems.length; i++) {
+        if(userItems[i].innerText === data.sender) {
+            console.log('New message from ' + userItems[i].innerText)
+            userItems[i].classList.add('new-message');
+            // also add text to the user item inner text
+            userItems[i].innerText += ' (+)';
+
+        }
+    }
 });
 
 // Online users event to receive online users from server and inject them into the chat

@@ -116,3 +116,12 @@ body {
 .i {
     width: 10px;
 }
+
+.new-message {
+    background-color: #fff;
+    border-radius: 5px;
+    color: green;
+    /* bold */
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}

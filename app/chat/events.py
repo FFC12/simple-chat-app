@@ -93,6 +93,18 @@ async def connect(sid, environ):
     await sio.save_session(sid, {'username': username, 'id': id})
 
 
+@sio.on("read_message")
+async def message_read(sid, data):
+    """
+    Read message event
+    :param sid:
+    :param data:
+    :return:
+    """
+    await sio.emit('read_message', data, room=data['to_id'])
+
+
+
 @sio.on("message")
 async def message(sid, data):
     """
@@ -135,7 +147,7 @@ async def message(sid, data):
     logger.debug(f'Target sid: {target_sid}')
 
     # send private message
-    await sio.emit('message', data, room=target_sid)
+    await sio.emit('message', data, room=[target_sid, sid])
 
     logger.info(f'Client {sid} sent message: {data}')
 

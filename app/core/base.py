@@ -22,6 +22,7 @@ ip = get_ip_address()
 # SocketIO manager instance
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins=['*',
                                                                     f'http://{ip}:8000',
+                                                                    f'http://0.0.0.0:8000',
                                                                     'http://localhost:8000'])
 
 # FastAPI instance
