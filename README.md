@@ -2,6 +2,9 @@
 
 This is a simple chat application developed using Python 3.11. It utilizes FastAPI, MongoDB, Redis, and Socket.io to provide a seamless messaging experience. Users can easily register, log in, and send private messages through a user-friendly interface. Real-time online user tracking is also included.
 
+![preview](assets/0.png)
+
+
 ### Main Features
 
 - User registration and login
