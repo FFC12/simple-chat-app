@@ -104,7 +104,6 @@ async def message_read(sid, data):
     await sio.emit('read_message', data, room=data['to_id'])
 
 
-
 @sio.on("message")
 async def message(sid, data):
     """

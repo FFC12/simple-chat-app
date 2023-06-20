@@ -1,6 +1,5 @@
 // Note: This script is used to handle the chat functionality quick-and-dirty *not safest way*
 
-
 // get all cookies
 var cookies = document.cookie.split(';');
 
@@ -8,8 +7,6 @@ var cookies = document.cookie.split(';');
 var username = null;
 var id = null;
 var accessToken = null;
-
-console.log('Cookies: ' + cookies);
 
 for(var i = 0; i < cookies.length; i++) {
     var cookie = cookies[i].trim();
@@ -37,7 +34,7 @@ const socket = io.connect('http://' + document.domain + ':' + location.port, {
 
 socket.emit('online_users', {});
 
-// Call this every 30 seconds to keep the connection alive
+// Call this every 60 seconds to keep the online users list up-to-date
 setInterval(function () {
     while (onlineUsersList.firstChild) {
         onlineUsersList.removeChild(onlineUsersList.firstChild);
@@ -45,6 +42,7 @@ setInterval(function () {
     socket.emit('online_users', {});
 }, 60000);
 
+// Elements and variables
 var messageContainer = document.getElementById('message-container');
 var messageForm = document.getElementById('message-form');
 var inputMessage = document.getElementById('input-message');
@@ -52,6 +50,8 @@ var onlineUsersList = document.getElementById('online-users-list');
 var currentSelectedFile = null;
 var selectedUser = null;
 
+// If message form is submitted send the message to the server
+// If a file is selected, upload it to the server
 messageForm.addEventListener('submit', function (e) {
     e.preventDefault();
     var message = inputMessage.value.trim();
@@ -103,7 +103,12 @@ function selectUser(element) {
     }
 
     console.log("Selected user: " + element.innerText); // DEBUG
-    selectedUser = element.innerText;
+
+    // Remove (+) from the element innerText
+    selectedUser = element.innerText.replace('(+)', ' ');
+
+    // Remove white spaces from the element innerText
+    selectedUser = selectedUser.trim();
 
     // Select the clicked user
     element.classList.add('selected');
@@ -111,8 +116,18 @@ function selectUser(element) {
     // Show the message form
     var messageForm = document.getElementById('message-form');
     messageForm.style.display = 'block';
+
+    // Get the message of the selected user from local storage if exists
+    getMessages(selectedUser, (messages) => {
+        for(var i = 0; i < messages.length; i++) {
+            var message = messages[i];
+            injectMessage(message);
+        }
+    });
 }
 
+// Validate the attachment size if it's bigger than 10 MB
+// then show an error message
 function validateAttachment(input) {
     const file = input.files[0];
     const maxSize = 10 * 1024 * 1024; // 10 MB
@@ -147,6 +162,7 @@ function validateAttachment(input) {
     }
 }
 
+// Remove the attachment
 function removeAttachment(element) {
     // remove the cross icon
     element.parentNode.removeChild(element);
@@ -204,34 +220,101 @@ injectOnlineUsers = function (online_users) {
     }
 }
 
+function injectMessage(message) {
+    data = message
+
+    var messageElement = document.createElement('div');
+    if(data.sender === username) {
+        // add the message to the right
+        messageElement.setAttribute('style', 'float: right; width: 100%; margin-bottom: 20px; text-align: right;');
+        messageElement.classList.add('message');
+        messageElement.innerHTML = '<strong style="color: blue; ">' + data.sender + ':</strong> ' + data.text;
+    } else {
+        // add the message to the left
+        messageElement.setAttribute('style', 'float: left; width: 100%; margin-bottom: 20px; text-align: left;');
+        messageElement.classList.add('message');
+        messageElement.innerHTML = '<strong>' + data.sender + ':</strong> ' + data.text;
+    }
+    // append the message to the message container
+    messageContainer.appendChild(messageElement);
+
+    // add a space element
+    var spaceElement = document.createElement('div');
+    spaceElement.setAttribute('style', 'height: 20px;');
+    messageContainer.appendChild(spaceElement);
+
+    // scroll to the bottom of the message container
+    messageContainer.scrollTop = messageContainer.scrollHeight;
+}
+
+// HTTP request to get the messages from the server for the user
+function requestMessages(username, func) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/messages/'+username, true);
+    xhr.onload = function () {
+        if(this.status === 200) {
+            // save the messages to the local storage
+            messages = JSON.parse(this.responseText);
+            localStorage.setItem('messages', JSON.stringify(messages));
+            func(messages);
+        } else {
+            console.log('Error: ' + this.status);
+        }
+    }
+}
+
+// get the messages from the server or local storage
+function getMessages(username, fun) {
+    // retrieve the last 100 messages from end point /messages
+    if(localStorage.getItem('messages') === null) {
+        // get the messages from the end point by XMLHttpRequest
+        requestMessages(username, fun);
+    } else {
+        var messages = JSON.parse(localStorage.getItem('messages'));
+        fun(messages[username]);
+    }
+}
+
 // Message event to receive messages from server and inject them into the chat
 socket.on('message', function (data) {
     console.log(data);
 
-
-    var messageElement = document.createElement('div');
-    if(data.sender === username) {
-        // float the message to the right add the style attribute
-        messageElement.setAttribute('style', 'float: right;');
-        messageElement.classList.add('message');
-        messageElement.innerHTML = '<strong style="color: blue; ">' + data.sender + ':</strong> ' + data.text;
+    // save the each incoming message to the messages array of sender
+    // if the sender is not in the messages array, create a new array for him
+    // if the sender is in the messages array, push the message to his array
+    if(messages[data.sender] === undefined) {
+        messages[data.sender] = [];
+        messages[data.sender].push(data);
     } else {
-        messageElement.classList.add('message');
-        messageElement.innerHTML = '<strong>' + data.sender + ':</strong> ' + data.text;
+        // it might be saved to the local storage already so check it
+        if(localStorage.getItem('messages') !== null) {
+            // it is saved to the local storage already so get it
+            messages = JSON.parse(localStorage.getItem('messages'));
+
+            // push the message to the messages array of sender
+            messages[data.sender].push(data);
+        } else {
+            // it is not saved to the local storage yet
+            messages[data.sender].push(data);
+
+            // save the messages array to the local storage
+            localStorage.setItem('messages', JSON.stringify(messages));
+        }
     }
-    messageContainer.appendChild(messageElement);
-    messageContainer.scrollTop = messageContainer.scrollHeight;
 
     // get all user-list-item elements
     var userItems = document.getElementsByClassName('user-list-item');
 
+    // check if the message is from the selected user or not
+    // if not, add a (+) to the user item
+    // if yes, no need to add (+)
     for(var i = 0; i < userItems.length; i++) {
-        if(userItems[i].innerText === data.sender) {
+        if(userItems[i].innerText === data.sender
+        && userItems[i].innerText !== selectedUser) {
             console.log('New message from ' + userItems[i].innerText)
             userItems[i].classList.add('new-message');
             // also add text to the user item inner text
             userItems[i].innerText += ' (+)';
-
         }
     }
 });
@@ -242,6 +325,9 @@ socket.on('online_users', function (data) {
     data = JSON.parse(data);
 
     online_users = data['online_users'];
+
+    //TODO: Before injecting online users, check if has unread messages or not
+    //TOOD: Before injecting online users, check if the user is logged in or not
 
     injectOnlineUsers(online_users);
 });
